@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="icon.png"/>
+  <title>Reply Center - Rescue Mesh</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <style>
+    body {
+      background: #f4f7fc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #333;
+    }
+
+    h2 {
+      font-weight: 900;
+      font-size: 2.3rem;
+      color: #2575fc;
+    }
+
+    h4 {
+      color: #2575fc;
+      font-weight: 700;
+    }
+
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      background: #fff;
+      border: none;
+    }
+
+    .table-container {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+
+    .table thead {
+      background: linear-gradient(90deg, #6a11cb, #2575fc);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .table tbody tr:hover {
+      background-color: rgba(37, 117, 252, 0.08);
+    }
+
+    .reply-box {
+      min-width: 240px;
+    }
+
+    .quick-btn {
+      margin: 2px;
+      font-size: 0.8rem;
+    }
+
+    .status-pill {
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      display: inline-block;
+      font-weight: 600;
+    }
+
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-handled {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .top-links a {
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .top-links a:hover {
+      text-decoration: underline;
+    }
+
+    .spinner-sm {
+      width: 1rem;
+      height: 1rem;
+      border-width: 0.15em;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container-fluid mt-4">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <h2>Rescue Mesh – Reply Center</h2>
+    </div>
+    <div class="col-md-4 text-md-end top-links mt-3 mt-md-0">
+      <a href="index.html" class="btn btn-outline-primary me-2">← Dashboard</a>
+      <a href="view_Full_Table.html" class="btn btn-outline-primary">Full Table</a>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-4 mb-2">
+      <div class="card text-center p-3">
+        <h5 style="color:#FF5733; font-weight:600;">Total SOS</h5>
+        <h3 id="totalSOS" style="color:#FF5733;">0</h3>
+      </div>
+    </div>
+    <div class="col-md-4 mb-2">
+      <div class="card text-center p-3">
+        <h5 style="color:#28a745; font-weight:600;">Handled</h5>
+        <h3 id="handledSOS" style="color:#28a745;">0</h3>
+      </div>
+    </div>
+    <div class="col-md-4 mb-2">
+      <div class="card text-center p-3">
+        <h5 style="color:#FFC107; font-weight:600;">Pending Reply</h5>
+        <h3 id="pendingSOS" style="color:#FFC107;">0</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+      <h4 class="mb-2">Manual Reply Management</h4>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Node Key</th>
+            <th>Message ID</th>
+            <th>Summary</th>
+            <th>Severity</th>
+            <th>Members</th>
+            <th>Status</th>
+            <th>Timestamp</th>
+            <th style="min-width: 420px;">Reply</th>
+          </tr>
+        </thead>
+        <tbody id="replyTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    onSnapshot
+  } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBzrKD4IjHiaYvpn5jgr5JcbFNyssX6aUU",
+    authDomain: "floodrescue-f062a.firebaseapp.com",
+    projectId: "floodrescue-f062a",
+    storageBucket: "floodrescue-f062a.firebasestorage.app",
+    messagingSenderId: "143056819050",
+    appId: "1:143056819050:web:ac7be693be8306d41ecb13"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const tbody = document.getElementById("replyTableBody");
+  const API_BASE = "http://localhost:3000";
+
+  function getSeverityBadge(severity) {
+    let color = "secondary";
+    if (severity === "Critical") color = "danger";
+    else if (severity === "High") color = "warning";
+    else if (severity === "Moderate") color = "info";
+    else if (severity === "Low") color = "success";
+    return `<span class="badge bg-${color}">${severity || "Unknown"}</span>`;
+  }
+
+  function getHandledStatus(handled) {
+    return handled
+      ? `<span class="status-pill status-handled">Handled</span>`
+      : `<span class="status-pill status-pending">Pending</span>`;
+  }
+
+  function createQuickReplyButtons(inputId) {
+    const replies = [
+      "SOS received",
+      "Stay where you are",
+      "Move to higher ground",
+      "Help is on the way"
+    ];
+
+    return replies.map(reply => {
+      return `<button class="btn btn-sm btn-outline-primary quick-btn" onclick="setQuickReply('${inputId}', '${reply}')">${reply}</button>`;
+    }).join("");
+  }
+
+  function addRow(index, item) {
+    const tr = document.createElement("tr");
+    const inputId = `replyInput_${item.id}`;
+    const aiBtnId = `aiBtn_${item.id}`;
+
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td><b>${item.node_key || "-"}</b></td>
+      <td><small>${item.messageId || "-"}</small></td>
+      <td style="color:#2575fc; font-weight:500;">${item.summary || item.message || "Processing..."}</td>
+      <td>${getSeverityBadge(item.severity)}</td>
+      <td>${item.familyMembers ?? "-"}</td>
+      <td>${getHandledStatus(item.handled)}</td>
+      <td><small>${item.timestamp?.toDate().toLocaleString() || ""}</small></td>
+      <td>
+        <div class="mb-2">
+          ${createQuickReplyButtons(inputId)}
+        </div>
+        <div class="input-group reply-box mb-2">
+          <input
+            type="text"
+            id="${inputId}"
+            class="form-control form-control-sm"
+            placeholder="Type short reply..."
+            value=""
+          />
+          <button class="btn btn-outline-success btn-sm" id="${aiBtnId}" onclick="suggestReply('${item.messageId}', '${inputId}', '${aiBtnId}')">
+            AI Suggest
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="sendReply('${item.messageId}', '${inputId}')">
+            Send
+          </button>
+          <a
+            href="chat_history.html?sosId=${item.id}&messageId=${encodeURIComponent(item.messageId || '')}&nodeKey=${encodeURIComponent(item.node_key || '')}"
+            class="btn btn-outline-secondary btn-sm"
+            title="View reply history"
+          >
+            <i class="bi bi-clock-history"></i>
+          </a>
+        </div>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  }
+
+  function loadSOSData() {
+    onSnapshot(collection(db, "C1"), (snapshot) => {
+      tbody.innerHTML = "";
+
+      let docs = [];
+      let total = 0;
+      let handledCount = 0;
+
+      snapshot.forEach((snap) => {
+        docs.push({ id: snap.id, ...snap.data() });
+      });
+
+      docs.sort((a, b) => {
+        if (a.handled !== b.handled) {
+          return a.handled ? 1 : -1;
+        }
+
+        const order = {
+          Critical: 1,
+          High: 2,
+          Moderate: 3,
+          Low: 4,
+          Unknown: 5
+        };
+
+        return (order[a.severity] || 6) - (order[b.severity] || 6);
+      });
+
+      docs.forEach((item, index) => {
+        addRow(index, item);
+        total++;
+        if (item.handled) handledCount++;
+      });
+
+      document.getElementById("totalSOS").textContent = total;
+      document.getElementById("handledSOS").textContent = handledCount;
+      document.getElementById("pendingSOS").textContent = total - handledCount;
+    });
+  }
+
+  window.setQuickReply = (inputId, text) => {
+    document.getElementById(inputId).value = text;
+  };
+
+  window.suggestReply = async (messageId, inputId, aiBtnId) => {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(aiBtnId);
+
+    const oldBtnHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm spinner-sm me-1"></span>Thinking`;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/reply-suggestion`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ messageId })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Suggestion failed");
+      }
+
+      input.value = result.suggestedReply || "";
+    } catch (error) {
+      console.error("AI suggestion error:", error);
+      alert(`Failed to generate suggestion: ${error.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldBtnHtml;
+    }
+  };
+
+  window.sendReply = async (messageId, inputId) => {
+    const input = document.getElementById(inputId);
+    const replyText = input.value.trim();
+
+    if (!replyText) {
+      alert("Please enter a reply message.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/reply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messageId,
+          replyText,
+          sentBy: "Dashboard Operator"
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Reply failed");
+      }
+
+      alert("Reply queued successfully.");
+      input.value = "";
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      alert(`Failed to send reply: ${error.message}`);
+    }
+  };
+
+  window.onload = loadSOSData;
+</script>
+
+</body>
+</html>
